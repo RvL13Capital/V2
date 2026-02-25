@@ -1,0 +1,15 @@
+# Data files (large CME data — not committed)
+*.parquet
+
+# Run logs
+*.log
+nul
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Claude session data
+.claude/

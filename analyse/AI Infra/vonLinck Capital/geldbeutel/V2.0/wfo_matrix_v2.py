@@ -27,9 +27,9 @@ Architecture changes from V1.0:
               pristine memory. Unadjusted CME data + surgical roll reset.
               Gene bounds rescaled to swing dimension (w/m in 1-min bars).
 
-    Step 5 — Asymmetric swing fitness: (net/dd) × sqrt(trades) / log(avg_hold+2)
-              sqrt(trades) scales by statistical significance (T-stat proxy).
-              1/log(avg_hold+2) penalises dead capital without forcing HFT.
+    Step 5 — Pure Calmar fitness: net/dd with hard feasibility gates.
+              min_trades=10 ensures statistical significance on 12-month IS.
+              min_avg_hold=200 bars (~3.3h) eliminates scalp-degenerate genomes.
               True intrabar MAE used for mark-to-market equity.
 
 Performance note:
@@ -821,7 +821,11 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
         w, m, d_min, d_max, v, beta, vol_mult
     )
 
-    if tr < 8:
+    if tr < 10:
+        return -999999.0
+
+    avg_hold = float(total_bars) / max(float(tr), 1.0)
+    if avg_hold < 200.0:
         return -999999.0
 
     net = final_cap - 100000.0
@@ -830,10 +834,10 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
     if net <= 0.0:
         return float(net - dd)
 
-    # Step 5: Asymmetric swing fitness
-    avg_hold = float(total_bars) / max(float(tr), 1.0)
-    calmar   = net / dd
-    return calmar * math.sqrt(float(tr)) * (1.0 / math.log(avg_hold + 2.0))
+    # Step 5: Pure Calmar — honest edge per unit risk.
+    # Hard gates above (min_trades=10, min_avg_hold=200 bars) define the
+    # feasible region; within it, net/dd is the only objective.
+    return net / dd
 
 
 # =====================================================================
@@ -863,7 +867,7 @@ def quantize_and_align_data(df):
 # Gene space (Step 4 swing scaling + vol_mult addition):
 #   w      : int,   [2000, 20000]  — 1-min bars lookback (1.4–14 days)
 #   m      : int,   [400,  2760]   — 1-min bars maturity (6.7h–2 days)
-#   d_min  : float, [0.10, 1.50]   — min sweep depth % (20–300 pts at NQ=20k)
+#   d_min  : float, [0.25, 1.50]   — min sweep depth % (50–300 pts at NQ=20k)
 #   d_max  : float, [0.50, 8.00]   — max excursion % before depth-death
 #   v      : int,   [2,    200]    — structural checks in VACUUM (1-min decision checks)
 #   beta   : float, [3.0,  15.0]   — reward asymmetry (absorbs overnight gap risk)
@@ -872,7 +876,7 @@ def quantize_and_align_data(df):
 GENE_BOUNDS = {
     'w':        (2000,  20000, 'int'),
     'm':        (400,   2760,  'int'),
-    'd_min':    (0.10,  1.50,  'float'),
+    'd_min':    (0.25,  1.50,  'float'),
     'd_max':    (0.50,  8.00,  'float'),
     'v':        (2,     200,   'int'),
     'beta':     (3.0,   15.0,  'float'),
@@ -1006,7 +1010,7 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
                 f"  Gen {gen:3d} | Best: {gen_best_fit:10.4f} | Mean: {gen_mean_fit:10.4f} | "
                 f"w={params['w']} m={params['m']} "
                 f"d=[{params['d_min']:.3f},{params['d_max']:.3f}] "
-                f"v={params['v']} β={params['beta']:.2f} "
+                f"v={params['v']} beta={params['beta']:.2f} "
                 f"vm={params['vol_mult']:.2f}",
                 flush=True
             )
@@ -1039,15 +1043,15 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
 # ROLLING WALK-FORWARD OPTIMIZATION — V2.0
 # =====================================================================
 
-def run_wfo(df, train_months=12, trade_months=6,
+def run_wfo(df, train_months=24, trade_months=12,
             pop_size=80, generations=50, seed=42):
     """
     Rolling WFO Matrix for swing liquidity sweep engine.
 
-    1. Train on [t - train_months, t) → GA finds apex genome
+    1. Train on [t - train_months, t) -> GA finds apex genome
     2. Overhang: w bars of pre-OOS data for structural map warm-up
        (Phase 1/2 locked inside Numba until true OOS boundary)
-    3. Trade on [t, t + trade_months) → locked genome, blind execution
+    3. Trade on [t, t + trade_months) -> locked genome, blind execution
     4. Stitch OOS segments into compounding equity curve
 
     Args:
@@ -1055,8 +1059,8 @@ def run_wfo(df, train_months=12, trade_months=6,
                        open, high, low, close, volume,
                        is_roll_date, tod_baseline_vol
                        Index: tz-aware DatetimeIndex (US/Eastern)
-        train_months : IS window in months
-        trade_months : OOS window in months
+        train_months : IS window in months (default 24 — swing system needs 2yr IS)
+        trade_months : OOS window in months (default 12 — sufficient for ~16 trades)
     """
     print("=" * 80)
     print("ROLLING WALK-FORWARD OPTIMIZATION MATRIX — geldbeutel V2.0")
@@ -1101,8 +1105,8 @@ def run_wfo(df, train_months=12, trade_months=6,
 
     print(f"\nTotal WFO windows: {len(windows)}")
     for i, win in enumerate(windows):
-        print(f"  W{i:02d}: Train [{win['train_start'].date()} → {win['train_end'].date()}) "
-              f"| OOS [{win['trade_start'].date()} → {win['trade_end'].date()})")
+        print(f"  W{i:02d}: Train [{win['train_start'].date()} -> {win['train_end'].date()}) "
+              f"| OOS [{win['trade_start'].date()} -> {win['trade_end'].date()})")
 
     oos_segments       = []
     window_results     = []
@@ -1111,7 +1115,7 @@ def run_wfo(df, train_months=12, trade_months=6,
     for i, win in enumerate(windows):
         print(f"\n{'='*80}")
         print(f"WINDOW {i}/{len(windows)-1}: Training "
-              f"[{win['train_start'].date()} → {win['train_end'].date()})")
+              f"[{win['train_start'].date()} -> {win['train_end'].date()})")
         print(f"{'='*80}")
 
         train_df = df[win['train_start']:win['train_end']]
@@ -1131,6 +1135,28 @@ def run_wfo(df, train_months=12, trade_months=6,
         print(f"\n  APEX GENOME (fitness={apex_fitness:.4f}, {ga_time:.1f}s):")
         for k, val in apex_genome.items():
             print(f"    {k}: {val}")
+
+        # Skip OOS if the apex genome is infeasible (fitness == -999999).
+        # Deploying an infeasible genome to OOS produces misleading equity changes.
+        # Capital passes forward unchanged; window is logged with 0 OOS stats.
+        if apex_fitness < 0:
+            print("  SKIP OOS: apex genome infeasible — capital passed forward unchanged.")
+            window_results.append({
+                'window':          i,
+                'train_start':     win['train_start'],
+                'trade_start':     win['trade_start'],
+                'trade_end':       win['trade_end'],
+                'genome':          apex_genome,
+                'ga_fitness':      apex_fitness,
+                'oos_net':         0.0,
+                'oos_dd':          0.0,
+                'oos_calmar':      0.0,
+                'oos_trades':      0,
+                'avg_hold_bars':   0.0,
+                'start_capital':   compounding_capital,
+                'end_capital':     compounding_capital,
+            })
+            continue
 
         # OOS run with integer-indexed overhang:
         #   w_bars for range(w_int, n) start offset + w_bars Phase 3 warm-up
@@ -1200,7 +1226,7 @@ def run_wfo(df, train_months=12, trade_months=6,
             })
 
             print(f"\n  OOS RESULT:")
-            print(f"    Capital:   ${compounding_capital:,.2f} → ${final_cap:,.2f}")
+            print(f"    Capital:   ${compounding_capital:,.2f} -> ${final_cap:,.2f}")
             print(f"    Net P&L:   ${oos_net:,.2f}")
             print(f"    Max DD:    ${oos_dd:,.2f}")
             print(f"    Calmar:    {oos_net / oos_dd if oos_dd > 0 else 0:.3f}")
@@ -1294,11 +1320,20 @@ if __name__ == '__main__':
     )
     print("JIT compiled.", flush=True)
 
-    # Run WFO
+    # Trim early low-volatility data: NQ < 5000 produces noise-level sweeps
+    # at d_min=0.25% (only ~12 points). Start from 2015 when NQ > 4000.
+    WFO_START = '2015-01-01'
+    if df.index[0] < pd.Timestamp(WFO_START, tz=df.index.tz):
+        pre_trim = len(df)
+        df = df[WFO_START:]
+        print(f"Trimmed {pre_trim - len(df):,} bars before {WFO_START} "
+              f"(low-vol NQ era). Remaining: {len(df):,} bars.")
+
+    # Run WFO — 24/12 windows (24mo IS, 12mo OOS)
     results = run_wfo(
         df,
-        train_months=12,
-        trade_months=6,
+        train_months=24,
+        trade_months=12,
         pop_size=80,
         generations=50,
     )
@@ -1307,11 +1342,11 @@ if __name__ == '__main__':
     if len(results['global_equity']) > 0:
         out_eq = os.path.join(DATA_DIR, "wfo_equity_curve_v2.parquet")
         results['global_equity'].to_frame('equity').to_parquet(out_eq)
-        print(f"\nEquity curve saved → wfo_equity_curve_v2.parquet")
+        print(f"\nEquity curve saved -> wfo_equity_curve_v2.parquet")
 
     if results['window_results']:
         import pandas as pd
         wr_df = pd.DataFrame(results['window_results'])
         out_wr = os.path.join(DATA_DIR, "wfo_window_results_v2.csv")
         wr_df.to_csv(out_wr, index=False)
-        print(f"Window results saved → wfo_window_results_v2.csv")
+        print(f"Window results saved -> wfo_window_results_v2.csv")
