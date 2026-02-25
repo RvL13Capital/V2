@@ -1,0 +1,132 @@
+# AIv3 Enhanced Pattern Detection System - Requirements
+# Python 3.8+
+#
+# MEMORY OPTIMIZATION (v3.1):
+# - Added psutil for memory monitoring
+# - Made TensorFlow/Keras optional (use [deeplearning] extra)
+# - Parquet support via pyarrow for efficient caching
+
+# ============================================================
+# CORE DEPENDENCIES (Required)
+# ============================================================
+
+# Core Data Science
+numpy>=1.20.0
+pandas>=1.3.0
+scipy>=1.7.0
+
+# Machine Learning
+scikit-learn>=1.0.0        # For RANSAC, TheilSenRegressor, feature selection
+xgboost>=1.5.0             # Primary ML model with memory-efficient tree_method='hist'
+lightgbm>=3.3.0            # Alternative gradient boosting
+
+# Technical Analysis
+ta-lib>=0.4.24             # Technical indicators (BBW, ADX, RSI, etc.)
+
+# Memory Monitoring (NEW in v3.1)
+psutil>=5.9.0              # System and process memory monitoring
+
+# Statistical Analysis
+statsmodels>=0.13.0        # Advanced statistical tests
+
+# Progress Bars
+tqdm>=4.62.0
+
+# Logging and Utilities
+python-dateutil>=2.8.0
+
+# Cloud Storage (for GCS data loading)
+google-cloud-storage>=2.0.0
+
+# File I/O - Parquet Support (IMPORTANT for memory optimization)
+pyarrow>=6.0.0             # For efficient Parquet file caching (10x smaller than CSV)
+
+# Configuration
+pyyaml>=6.0
+
+# ============================================================
+# VISUALIZATION (Recommended)
+# ============================================================
+
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# ============================================================
+# MODEL EXPLAINABILITY (Recommended)
+# ============================================================
+
+shap>=0.42.0               # SHapley Additive exPlanations for model interpretability
+lime>=0.2.0                # Local Interpretable Model-agnostic Explanations
+
+# ============================================================
+# HYPERPARAMETER OPTIMIZATION (Optional)
+# ============================================================
+
+optuna>=3.0.0              # Hyperparameter optimization
+
+# ============================================================
+# DEEP LEARNING - MambaAttention (NEW in AIv5)
+# ============================================================
+# MambaAttention with Asymmetric Loss for K4 extreme rarity (0.4%)
+# Requires CUDA for optimal performance
+#
+# Installation:
+#   pip install torch>=2.0.0 --index-url https://download.pytorch.org/whl/cu118
+#   pip install mamba-ssm triton packaging
+#
+# PyTorch (REQUIRED for MambaAttention)
+torch>=2.0.0               # PyTorch deep learning framework
+torchvision>=0.15.0        # PyTorch vision utilities
+
+# Mamba State-Space Model (REQUIRED for MambaAttention)
+mamba-ssm>=1.0.0           # Official Mamba SSM implementation (CUDA required)
+triton>=2.0.0              # Kernel compiler for mamba-ssm (CUDA)
+packaging>=21.0            # Required by mamba-ssm
+
+# ============================================================
+# DEEP LEARNING - Legacy TensorFlow (Optional)
+# ============================================================
+# Install these ONLY if using CNN-BiLSTM-Attention (deprecated)
+# NOT recommended for 8GB RAM systems
+#
+# To install TensorFlow dependencies:
+#   pip install -e ".[tensorflow]"
+#
+# tensorflow>=2.10.0,<2.16.0  # TensorFlow for CNN-BiLSTM-Attention model
+# keras>=2.10.0               # High-level neural networks API
+
+# ============================================================
+# DEVELOPMENT/TESTING (Optional)
+# ============================================================
+
+pytest>=7.0.0
+pytest-cov>=3.0.0
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# ============================================================
+# INSTALLATION NOTES FOR 8GB RAM SYSTEMS:
+# ============================================================
+#
+# 1. Basic installation (recommended for 8GB RAM):
+#    pip install -r requirements.txt
+#
+# 2. Enable memory optimization in code:
+#    export MEMORY_MODE=aggressive
+#
+# 3. Use Parquet caching (automatic with memory optimization):
+#    - 10x smaller file size than CSV
+#    - Faster loading times
+#    - Selective column loading
+#
+# 4. Batch processing (automatic with memory optimization):
+#    - Processes 10 tickers at a time by default
+#    - Garbage collection between batches
+#    - Adjustable via config.memory.batch_size_tickers
+#
+# 5. XGBoost optimization (automatic with memory optimization):
+#    - tree_method='hist' (30-50% memory reduction)
+#    - max_bin=256 (controls histogram bins)
+#    - Feature subsampling for additional memory savings
+#
+# ============================================================

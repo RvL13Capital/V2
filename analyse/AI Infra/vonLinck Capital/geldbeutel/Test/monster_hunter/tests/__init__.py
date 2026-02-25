@@ -1,0 +1,3 @@
+"""
+Monster Hunter Test Suite
+"""

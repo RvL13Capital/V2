@@ -1,0 +1,185 @@
+# Default configuration for Dual ML Breakout Classification System
+
+data:
+  input_path: "data/raw"
+  output_path: "data/processed"
+  parquet_pattern: "*.parquet"
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  min_samples: 1000
+
+preprocessing:
+  # Outlier detection
+  outlier_method: "iqr"  # Options: iqr, zscore, isolation_forest
+  outlier_threshold: 3.0
+  min_data_points: 100
+
+  # Asset calibration
+  calibration_window: 90
+  update_frequency: 30
+
+  # Stationarity
+  stationarity_test: "both"  # Options: adf, kpss, both
+  significance_level: 0.05
+  max_diff_order: 2
+
+  # Normalization
+  normalize_method: "robust"  # Options: minmax, zscore, robust
+  feature_range: [0, 1]
+
+features:
+  # Sequence parameters
+  sequence_length: 50
+  overlap: 10
+
+  # Tabular features
+  tabular_features:
+    - "rsi"
+    - "macd"
+    - "macd_signal"
+    - "bollinger_upper"
+    - "bollinger_lower"
+    - "volume_ratio"
+    - "volatility"
+    - "atr"
+    - "adx"
+    - "obv"
+
+  # Sequential features
+  sequential_features:
+    - "returns"
+    - "log_volume"
+    - "volatility_rolling"
+    - "high_low_ratio"
+    - "close_position"
+
+  # Feature selection
+  feature_selection_method: "mutual_info"  # Options: mutual_info, shap, recursive
+  n_top_features: 50
+  importance_threshold: 0.001
+
+models:
+  # LightGBM configuration
+  lightgbm:
+    n_classes: 3  # Up, Down, Neutral
+    objective: "multiclass"
+    metric: "multi_logloss"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    learning_rate: 0.05
+    feature_fraction: 0.9
+    bagging_fraction: 0.8
+    bagging_freq: 5
+    min_child_samples: 20
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+    n_estimators: 300
+    early_stopping_rounds: 50
+
+  # Sequential model configuration
+  sequential:
+    # CNN layers
+    cnn_filters: [64, 128, 256]
+    cnn_kernel_sizes: [3, 5, 7]
+    cnn_activation: "relu"
+
+    # LSTM layers
+    lstm_units: [128, 64]
+    lstm_dropout: 0.3
+    recurrent_dropout: 0.3
+
+    # Attention
+    attention_units: 128
+
+    # Dense layers
+    dense_units: [256, 128]
+    dropout_rate: 0.3
+
+  # Ensemble configuration
+  ensemble:
+    method: "weighted_average"  # Options: weighted_average, stacking, voting
+    use_meta_learner: true
+    meta_learner_type: "xgboost"
+
+optimization:
+  # Optuna settings
+  n_trials: 100
+  n_jobs: -1
+  timeout: 3600  # seconds
+
+  # What to optimize
+  optimize_lightgbm: true
+  optimize_sequential: true
+  optimize_ensemble: true
+
+  # Optimization strategy
+  sampler: "tpe"  # Options: tpe, random, grid
+  pruner: "median"  # Options: median, percentile, hyperband
+
+  # Cross-validation
+  cv_folds: 5
+  cv_strategy: "time_series"  # Options: stratified, time_series
+
+training:
+  # Training parameters
+  epochs: 100
+  batch_size: 32
+  patience: 20
+  min_delta: 0.001
+
+  # Learning rate
+  initial_lr: 0.001
+  lr_schedule: "exponential"  # Options: exponential, cosine, step
+  lr_decay_rate: 0.96
+
+  # Class balancing
+  use_class_weights: true
+  class_weight_strategy: "balanced"  # Options: balanced, custom
+
+  # Validation
+  validation_frequency: 1
+  use_tensorboard: true
+
+evaluation:
+  # Metrics to track
+  metrics:
+    - "accuracy"
+    - "f1_weighted"
+    - "precision"
+    - "recall"
+    - "auc_roc"
+    - "confusion_matrix"
+
+  # Thresholds
+  confidence_threshold: 0.7
+
+  # Backtesting
+  backtest_window: 100
+  walk_forward_splits: 10
+
+output:
+  # Model saving
+  model_path: "models/trained"
+  checkpoint_path: "models/checkpoints"
+
+  # Results
+  results_path: "results"
+  plots_path: "results/plots"
+
+  # What to save
+  save_preprocessors: true
+  save_feature_importance: true
+  save_attention_weights: true
+  save_predictions: true
+
+  # Logging
+  log_level: "INFO"
+  log_file: "logs/training.log"
+
+# Runtime settings
+runtime:
+  seed: 42
+  device: "cpu"  # Options: cpu, gpu
+  mixed_precision: false
+  profile: false

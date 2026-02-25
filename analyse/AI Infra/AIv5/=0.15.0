@@ -1,0 +1,24 @@
+Defaulting to user installation because normal site-packages is not writeable
+Looking in indexes: https://download.pytorch.org/whl/cu118
+Collecting torch
+  Downloading https://download.pytorch.org/whl/cu118/torch-2.7.1%2Bcu118-cp313-cp313-win_amd64.whl.metadata (27 kB)
+Collecting torchvision
+  Downloading https://download.pytorch.org/whl/cu118/torchvision-0.22.1%2Bcu118-cp313-cp313-win_amd64.whl.metadata (6.3 kB)
+Requirement already satisfied: filelock in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (3.13.1)
+Requirement already satisfied: typing-extensions>=4.10.0 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (4.14.1)
+Requirement already satisfied: sympy>=1.13.3 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (1.13.3)
+Requirement already satisfied: networkx in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (3.3)
+Requirement already satisfied: jinja2 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (3.1.6)
+Requirement already satisfied: fsspec in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (2024.6.1)
+Requirement already satisfied: setuptools in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torch) (70.2.0)
+Requirement already satisfied: numpy in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torchvision) (2.2.6)
+Requirement already satisfied: pillow!=8.3.*,>=5.3.0 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from torchvision) (11.3.0)
+Requirement already satisfied: mpmath<1.4,>=1.1.0 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from sympy>=1.13.3->torch) (1.3.0)
+Requirement already satisfied: MarkupSafe>=2.0 in c:\users\pfenn\appdata\roaming\python\python313\site-packages (from jinja2->torch) (3.0.2)
+Downloading https://download.pytorch.org/whl/cu118/torch-2.7.1%2Bcu118-cp313-cp313-win_amd64.whl (2817.2 MB)
+   ---------------------------------------- 2.8/2.8 GB ?  0:05:29
+Downloading https://download.pytorch.org/whl/cu118/torchvision-0.22.1%2Bcu118-cp313-cp313-win_amd64.whl (5.5 MB)
+   ---------------------------------------- 5.5/5.5 MB 9.3 MB/s  0:00:00
+Installing collected packages: torch, torchvision
+
+Successfully installed torch-2.7.1+cu118 torchvision-0.22.1+cu118

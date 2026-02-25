@@ -1,0 +1,48 @@
+# Core ML Libraries
+lightgbm>=4.1.0
+tensorflow>=2.14.0
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+
+# Optimization
+optuna>=3.4.0
+optuna-dashboard>=0.13.0
+
+# Data Processing
+pandas>=2.1.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+fastparquet>=2023.10.0
+
+# Technical Analysis
+ta-lib>=0.4.28
+pandas-ta>=0.3.14b
+
+# Feature Engineering
+shap>=0.43.0
+statsmodels>=0.14.0
+scipy>=1.11.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.17.0
+tensorboard>=2.14.0
+
+# Utilities
+pyyaml>=6.0
+joblib>=1.3.0
+tqdm>=4.66.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Development
+black>=23.9.0
+flake8>=6.1.0
+mypy>=1.5.0
+ipykernel>=6.25.0
+jupyter>=1.0.0

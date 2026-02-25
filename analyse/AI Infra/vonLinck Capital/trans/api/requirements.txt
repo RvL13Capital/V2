@@ -1,0 +1,34 @@
+# API Dependencies for TRANS Production System
+# ============================================
+
+# Core API Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Async Support
+aiofiles==23.2.1
+asyncio==3.4.3
+
+# CORS and Security
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Database (if not already installed)
+sqlalchemy==2.0.23
+psycopg2-binary==2.9.9  # For PostgreSQL
+pymysql==1.1.0  # For MySQL
+
+# Monitoring and Metrics
+prometheus-client==0.19.0
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Documentation
+mkdocs==1.5.3
+mkdocs-material==9.4.14

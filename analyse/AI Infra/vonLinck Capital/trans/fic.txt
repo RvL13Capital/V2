@@ -1,0 +1,59 @@
+Checklist of Needed Tasks — Most Crucial First:
+
+-Eliminate Look-Ahead Bias in Dynamic Labeling
+
+Implement forward-looking volatility using only pre-pattern data for window calculation.
+
+Run independent audit of temporal integrity (beyond self-reported tests).
+
+-Address Survivorship & Selection Bias
+
+Incorporate delisted, halted, and bankrupt stocks into dataset (if available).
+
+Backtest on survivorship-bias-free universe or use synthetic survivorship adjustment.
+
+-Redesign Validation Strategy
+
+Expand validation period to include multiple market regimes (e.g., 2015–2024).
+
+Ensure at least 500–1000 Target-class samples in validation set.
+
+-Simplify & Justify Hyperparameters
+
+Conduct sensitivity analysis on all thresholds (BBW<30%, ADX<32, volume<35%, etc.).
+
+Document empirical or theoretical rationale for each.
+
+-Revisit Loss Function Design
+
+Remove “coil boost” or rigorously validate coil_intensity as a causal feature.
+
+Test standard focal loss + class weighting vs. current implementation.
+
+-Incorporate Regime Adaptation
+
+Add macroeconomic/market-regime features (VIX, sector rotation, liquidity indicators).
+
+Allow dynamic R-multiple targets and position sizing based on regime.
+
+-Conduct Cross-Region Validation
+
+Test model on US and Asian micro-caps without retraining.
+
+If performance diverges, consider region-specific models or region as a feature.
+
+-Enhance Data Safeguards
+
+Add validations for raw OHLCV (negative volumes, missing splits, outliers).
+
+Implement automated regime-based scenario testing in pipeline.
+
+-Review & Simplify Architecture
+
+Run ablation studies to confirm LSTM+CNN+GRN adds value over simpler model.
+
+Remove unused ablation modes from production code.
+
+-Document All Assumptions & Risks
+
+Publish a model card detailing known biases, failure modes, and market conditions where system underperforms.
