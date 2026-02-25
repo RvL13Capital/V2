@@ -57,20 +57,20 @@ pre-computed in `data_loader_v2.py` (200-bar rolling median).
 
 | Gene | V1.0 (5-min CFD) | V2.0 (1-min CME swing) | Physical Meaning |
 |------|-----------------|----------------------|-----------------|
-| `w` | [72, 576] bars | **[2000, 20000]** bars | 1.4–14 days macro lookback |
+| `w` | [72, 576] bars | **[2000, 8000]** bars | 1.4–5.6 days macro lookback |
 | `m` | [6, 144] bars | **[400, 2760]** bars | 6.7h–2 day level maturity |
 | `d_min` | [0.02, 0.50]% | **[0.25, 1.50]%** | 50–300 pt structural sweep |
 | `d_max` | [0.10, 2.00]% | **[0.50, 8.00]%** | depth-death ceiling |
 | `v` | [1, 10] checks | **[2, 200]** checks | VACUUM duration tolerance |
 | `beta` | [1.0, 8.0] R | **[3.0, 15.0]** R | absorbs overnight gap risk |
-| `vol_mult` | N/A (new) | **[0.5, 3.0]** | volume friction multiplier |
+| `vol_mult` | N/A (new) | **[0.5, 1.5]** | volume friction multiplier |
 
 ### Step 5 — Pure Calmar Fitness with Hard Gates
 ```
 fitness = net / dd   (if feasible, else -999999)
 ```
 - Hard gate: `min_trades = 15` — statistical significance on 12-month IS
-- Hard gate: `min_avg_hold = 200 bars` (~3.3h) — eliminates scalp-degenerate genomes
+- Hard gate: `min_avg_hold = 500 bars` (~8h) — eliminates scalp-degenerate genomes
 - Pure Calmar `net/dd` within the feasible region — honest edge per unit risk
 - Mark-to-market uses true intrabar MAE: `equity[t] = capital + (q_low[t] - entry_px) × size × PT_VAL` for longs
 - V1.0 validated: simple Calmar achieved Calmar 1.12 OOS on 9-year CFD data
@@ -81,13 +81,13 @@ fitness = net / dd   (if feasible, else -999999)
 
 | Gene | Symbol | Type | Range | Physical Meaning |
 |------|--------|------|-------|-----------------|
-| Macro Lookback | `w` | int | [2000, 20000] | Structural scope (1.4–14 days) |
+| Macro Lookback | `w` | int | [2000, 8000] | Structural scope (1.4–5.6 days) |
 | Anchor Maturity | `m` | int | [400, 2760] | Level must age (stops accumulate) |
 | Min Sweep Depth | `d_min` | float | [0.25, 1.50]% | Minimum institutional capitulation |
 | Max Excursion | `d_max` | float | [0.50, 8.00]% | Maximum before hypothesis dies |
 | Reclaim Tolerance | `v` | int | [2, 200] | Structural checks in VACUUM |
 | Reward Asymmetry | `beta` | float | [3.0, 15.0] | R-multiple for take-profit |
-| Volume Gate | `vol_mult` | float | [0.5, 3.0] | Sweep vol vs median threshold |
+| Volume Gate | `vol_mult` | float | [0.5, 1.5] | Sweep vol vs median threshold |
 
 **Constraints**: `w > m`, `d_min < d_max`, `v >= 2`, `beta > 1.0`, `vol_mult > 0`. Violations return -999999.
 

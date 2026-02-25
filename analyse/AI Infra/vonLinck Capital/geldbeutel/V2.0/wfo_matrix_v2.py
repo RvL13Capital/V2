@@ -29,7 +29,7 @@ Architecture changes from V1.0:
 
     Step 5 — Pure Calmar fitness: net/dd with hard feasibility gates.
               min_trades=10 ensures statistical significance on 12-month IS.
-              min_avg_hold=200 bars (~3.3h) eliminates scalp-degenerate genomes.
+              min_avg_hold=500 bars (~8h) eliminates scalp-degenerate genomes.
               True intrabar MAE used for mark-to-market equity.
 
 Performance note:
@@ -825,7 +825,7 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
         return -999999.0
 
     avg_hold = float(total_bars) / max(float(tr), 1.0)
-    if avg_hold < 200.0:
+    if avg_hold < 500.0:
         return -999999.0
 
     net = final_cap - 100000.0
@@ -865,22 +865,22 @@ def quantize_and_align_data(df):
 # 7-GENE GENOME DEFINITION
 # =====================================================================
 # Gene space (Step 4 swing scaling + vol_mult addition):
-#   w      : int,   [2000, 20000]  — 1-min bars lookback (1.4–14 days)
+#   w      : int,   [2000, 8000]   — 1-min bars lookback (1.4–5.6 days)
 #   m      : int,   [400,  2760]   — 1-min bars maturity (6.7h–2 days)
 #   d_min  : float, [0.25, 1.50]   — min sweep depth % (50–300 pts at NQ=20k)
 #   d_max  : float, [0.50, 8.00]   — max excursion % before depth-death
 #   v      : int,   [2,    200]    — structural checks in VACUUM (1-min decision checks)
 #   beta   : float, [3.0,  15.0]   — reward asymmetry (absorbs overnight gap risk)
-#   vol_mult: float,[0.5,  3.0]    — sweep vol must exceed vol_mult × median
+#   vol_mult: float,[0.5,  1.5]    — sweep vol must exceed vol_mult × median
 
 GENE_BOUNDS = {
-    'w':        (2000,  20000, 'int'),
+    'w':        (2000,  8000,  'int'),
     'm':        (400,   2760,  'int'),
     'd_min':    (0.25,  1.50,  'float'),
     'd_max':    (0.50,  8.00,  'float'),
     'v':        (2,     200,   'int'),
     'beta':     (3.0,   15.0,  'float'),
-    'vol_mult': (0.5,   3.0,   'float'),
+    'vol_mult': (0.5,   1.5,   'float'),
 }
 
 GENE_NAMES = list(GENE_BOUNDS.keys())
