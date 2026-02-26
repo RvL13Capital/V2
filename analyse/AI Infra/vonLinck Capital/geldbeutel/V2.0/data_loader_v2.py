@@ -29,7 +29,7 @@ Output parquet schema:
     open, high, low, close: float64, tick-quantised to 0.25
     volume:              float64, CME exchange contracts per bar
     is_roll_date:        bool, True on first 1-min bar of new contract session
-    tod_baseline_vol:    float64, time-of-day 20-period trailing median volume
+    tod_baseline_vol:    float64, time-of-day RVOL_TRAILING_DAYS-period trailing median volume
 
 Usage:
     python data_loader_v2.py --input path/to/nq_1min.csv --output NQ_CME_1min.parquet
@@ -49,7 +49,7 @@ import pandas as pd
 # =====================================================================
 TICK = 0.25
 ROLL_GAP_THRESHOLD   = 0.003   # 0.30% — gaps below this are normal; above = roll candidate
-RVOL_TRAILING_DAYS   = 20      # trading days for ToD trailing median
+RVOL_TRAILING_DAYS   = 10      # trading days for ToD trailing median (2 weeks — adapts faster to NQ volume regime shifts)
 ROLL_DATES_OVERRIDE_PATH = "roll_dates_override.csv"  # optional manual override
 
 # CME NQ quarterly expiry months
@@ -157,10 +157,12 @@ def detect_roll_dates(df: pd.DataFrame,
     print(f"  Total roll dates (union): {len(all_roll_date_strs)}")
 
     # Mark is_roll on the FIRST bar of each roll date
+    idx_start = df.index[0].normalize().tz_localize(None)
+    idx_end   = df.index[-1].normalize().tz_localize(None)
     roll_ts = pd.DatetimeIndex([
         pd.Timestamp(d, tz=df.index.tz) for d in all_roll_date_strs
-        if pd.Timestamp(d) >= df.index[0].normalize() and
-           pd.Timestamp(d) <= df.index[-1].normalize()
+        if pd.Timestamp(d) >= idx_start and
+           pd.Timestamp(d) <= idx_end
     ])
 
     for ts in roll_ts:
@@ -331,7 +333,7 @@ def load_and_prepare(
     df['minute_of_day'] = df.index.hour * 60 + df.index.minute
     df['tod_baseline_vol'] = (
         df.groupby('minute_of_day')['volume']
-        .transform(lambda x: x.shift(1).rolling(window=20, min_periods=1).median())
+        .transform(lambda x: x.shift(1).rolling(window=RVOL_TRAILING_DAYS, min_periods=1).median())
     )
     # Backfill early-data NaNs within each minute group
     df['tod_baseline_vol'] = df.groupby('minute_of_day')['tod_baseline_vol'].bfill()

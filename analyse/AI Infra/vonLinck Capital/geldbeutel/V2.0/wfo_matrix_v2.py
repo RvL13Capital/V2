@@ -867,20 +867,20 @@ def quantize_and_align_data(df):
 # Gene space (Step 4 swing scaling + vol_mult addition):
 #   w      : int,   [2000, 8000]   — 1-min bars lookback (1.4–5.6 days)
 #   m      : int,   [400,  2760]   — 1-min bars maturity (6.7h–2 days)
-#   d_min  : float, [0.25, 1.50]   — min sweep depth % (50–300 pts at NQ=20k)
-#   d_max  : float, [0.50, 8.00]   — max excursion % before depth-death
+#   d_min  : float, [0.10, 1.50]   — min sweep depth % (20–300 pts at NQ=20k)
+#   d_max  : float, [1.00, 10.00]  — max excursion % before depth-death
 #   v      : int,   [2,    200]    — structural checks in VACUUM (1-min decision checks)
 #   beta   : float, [3.0,  15.0]   — reward asymmetry (absorbs overnight gap risk)
-#   vol_mult: float,[0.5,  1.5]    — sweep vol must exceed vol_mult × median
+#   vol_mult: float,[0.2,  1.5]    — sweep vol must exceed vol_mult × median
 
 GENE_BOUNDS = {
     'w':        (2000,  8000,  'int'),
     'm':        (400,   2760,  'int'),
-    'd_min':    (0.25,  1.50,  'float'),
-    'd_max':    (0.50,  8.00,  'float'),
+    'd_min':    (0.10,  1.50,  'float'),
+    'd_max':    (1.00,  10.00, 'float'),
     'v':        (2,     200,   'int'),
     'beta':     (3.0,   15.0,  'float'),
-    'vol_mult': (0.5,   1.5,   'float'),
+    'vol_mult': (0.2,   1.5,   'float'),
 }
 
 GENE_NAMES = list(GENE_BOUNDS.keys())

@@ -59,11 +59,11 @@ pre-computed in `data_loader_v2.py` (200-bar rolling median).
 |------|-----------------|----------------------|-----------------|
 | `w` | [72, 576] bars | **[2000, 8000]** bars | 1.4–5.6 days macro lookback |
 | `m` | [6, 144] bars | **[400, 2760]** bars | 6.7h–2 day level maturity |
-| `d_min` | [0.02, 0.50]% | **[0.25, 1.50]%** | 50–300 pt structural sweep |
-| `d_max` | [0.10, 2.00]% | **[0.50, 8.00]%** | depth-death ceiling |
+| `d_min` | [0.02, 0.50]% | **[0.10, 1.50]%** | 20–300 pt structural sweep (NQ@20k) |
+| `d_max` | [0.10, 2.00]% | **[1.00, 10.00]%** | depth-death ceiling (avoids false lockouts) |
 | `v` | [1, 10] checks | **[2, 200]** checks | VACUUM duration tolerance |
 | `beta` | [1.0, 8.0] R | **[3.0, 15.0]** R | absorbs overnight gap risk |
-| `vol_mult` | N/A (new) | **[0.5, 1.5]** | volume friction multiplier |
+| `vol_mult` | N/A (new) | **[0.2, 1.5]** | volume friction multiplier (thin modern NQ book) |
 
 ### Step 5 — Pure Calmar Fitness with Hard Gates
 ```
@@ -83,11 +83,11 @@ fitness = net / dd   (if feasible, else -999999)
 |------|--------|------|-------|-----------------|
 | Macro Lookback | `w` | int | [2000, 8000] | Structural scope (1.4–5.6 days) |
 | Anchor Maturity | `m` | int | [400, 2760] | Level must age (stops accumulate) |
-| Min Sweep Depth | `d_min` | float | [0.25, 1.50]% | Minimum institutional capitulation |
-| Max Excursion | `d_max` | float | [0.50, 8.00]% | Maximum before hypothesis dies |
+| Min Sweep Depth | `d_min` | float | [0.10, 1.50]% | Minimum institutional capitulation (20 pts at NQ@20k) |
+| Max Excursion | `d_max` | float | [1.00, 10.00]% | Maximum before hypothesis dies |
 | Reclaim Tolerance | `v` | int | [2, 200] | Structural checks in VACUUM |
 | Reward Asymmetry | `beta` | float | [3.0, 15.0] | R-multiple for take-profit |
-| Volume Gate | `vol_mult` | float | [0.5, 1.5] | Sweep vol vs median threshold |
+| Volume Gate | `vol_mult` | float | [0.2, 1.5] | Sweep vol vs median (thin post-2022 NQ book) |
 
 **Constraints**: `w > m`, `d_min < d_max`, `v >= 2`, `beta > 1.0`, `vol_mult > 0`. Violations return -999999.
 
@@ -105,7 +105,8 @@ of `ENSEMBLE_SIZE=3` diverse genomes from a hall-of-fame accumulated across all 
 | `DIVERSITY_THRESHOLD_PCT` | 0.15 (each differing gene >= 15% of range) |
 
 **Hall-of-Fame**: Every feasible genome across all 50 GA generations is accumulated,
-deduplicated, and the top 20 by fitness are retained. The ensemble is greedy-selected:
+deduplicated using gene-distance (not float epsilon — prevents near-clone flooding),
+and the top 50 are retained. The ensemble is greedy-selected:
 apex first, then the highest-fitness genome passing the diversity filter against all
 already-selected members. Fallback pads with best-fitness non-clones if diversity
 filter yields fewer than N.
