@@ -60,7 +60,7 @@ pre-computed in `data_loader_v2.py` (200-bar rolling median).
 | `w` | [72, 576] bars | **[2000, 8000]** bars | 1.4–5.6 days macro lookback |
 | `m` | [6, 144] bars | **[400, 2760]** bars | 6.7h–2 day level maturity |
 | `d_min` | [0.02, 0.50]% | **[0.10, 1.50]%** | 20–300 pt structural sweep (NQ@20k) |
-| `d_max` | [0.10, 2.00]% | **[1.00, 10.00]%** | depth-death ceiling (avoids false lockouts) |
+| `d_max` | [0.10, 2.00]% | **[1.00, 15.00]%** | depth-death ceiling (avoids false lockouts) |
 | `v` | [1, 10] checks | **[2, 200]** checks | VACUUM duration tolerance |
 | `beta` | [1.0, 8.0] R | **[3.0, 15.0]** R | absorbs overnight gap risk |
 | `vol_mult` | N/A (new) | **[0.2, 1.5]** | volume friction multiplier (thin modern NQ book) |
@@ -71,6 +71,7 @@ fitness = net / dd   (if feasible, else -999999)
 ```
 - Hard gate: `min_trades = 15` — statistical significance on 12-month IS
 - Hard gate: `min_avg_hold = 500 bars` (~8h) — eliminates scalp-degenerate genomes
+- Hard gate: `IS Calmar ≥ 0.5` — rejects low-edge genomes with positive net but weak risk-adjusted return
 - Pure Calmar `net/dd` within the feasible region — honest edge per unit risk
 - Mark-to-market uses true intrabar MAE: `equity[t] = capital + (q_low[t] - entry_px) × size × PT_VAL` for longs
 - V1.0 validated: simple Calmar achieved Calmar 1.12 OOS on 9-year CFD data
@@ -84,7 +85,7 @@ fitness = net / dd   (if feasible, else -999999)
 | Macro Lookback | `w` | int | [2000, 8000] | Structural scope (1.4–5.6 days) |
 | Anchor Maturity | `m` | int | [400, 2760] | Level must age (stops accumulate) |
 | Min Sweep Depth | `d_min` | float | [0.10, 1.50]% | Minimum institutional capitulation (20 pts at NQ@20k) |
-| Max Excursion | `d_max` | float | [1.00, 10.00]% | Maximum before hypothesis dies |
+| Max Excursion | `d_max` | float | [1.00, 15.00]% | Maximum before hypothesis dies |
 | Reclaim Tolerance | `v` | int | [2, 200] | Structural checks in VACUUM |
 | Reward Asymmetry | `beta` | float | [3.0, 15.0] | R-multiple for take-profit |
 | Volume Gate | `vol_mult` | float | [0.2, 1.5] | Sweep vol vs median (thin post-2022 NQ book) |
@@ -207,7 +208,7 @@ This completely replaces gap-detection (Method B) for any dates listed.
 | Crossover | Simulated Binary (SBX, eta=2) |
 | Mutation | Polynomial (15% rate) + integer snapping |
 | Elitism | Top 10% carry forward |
-| Min trades for fitness | 8 |
+| Min trades for fitness | 15 |
 | OOS stitching | Compounding (scaled to running capital) |
 
 ---
@@ -271,7 +272,7 @@ python wfo_matrix_v2.py
 | CME data source not included | data_loader_v2.py accepts any CSV/Parquet; see Data Requirements |
 | 12–24h WFO runtime | STRUCTURAL_RESOLUTION tunable; start with 15 for rapid prototyping |
 | Unadjusted data has roll gaps | is_roll_date zeros structural memory; positions closed on roll |
-| Low swing trade frequency (~20–40/yr) | Fitness min_trades=8; Calmar×√trades respects low-frequency edge |
+| Low swing trade frequency (~20–40/yr) | Fitness min_trades=15; IS Calmar≥0.5 gate; Calmar×√trades respects low-frequency edge |
 | Regime gate can over-lock in trending markets | Gate resets on opposite-side success; self-correcting over time |
 
 ---
