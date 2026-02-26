@@ -93,6 +93,32 @@ fitness = net / dd   (if feasible, else -999999)
 
 ---
 
+## Ensemble OOS Deployment (V5+)
+
+Instead of deploying a single apex genome per WFO window, the GA returns an ensemble
+of `ENSEMBLE_SIZE=3` diverse genomes from a hall-of-fame accumulated across all generations.
+
+| Parameter | Value |
+|-----------|-------|
+| `ENSEMBLE_SIZE` | 3 (genomes deployed per OOS window) |
+| `DIVERSITY_MIN_GENES` | 3 (must differ on >= 3 of 7 genes) |
+| `DIVERSITY_THRESHOLD_PCT` | 0.15 (each differing gene >= 15% of range) |
+
+**Hall-of-Fame**: Every feasible genome across all 50 GA generations is accumulated,
+deduplicated, and the top 20 by fitness are retained. The ensemble is greedy-selected:
+apex first, then the highest-fitness genome passing the diversity filter against all
+already-selected members. Fallback pads with best-fitness non-clones if diversity
+filter yields fewer than N.
+
+**Ensemble Equity**: Each genome receives full `compounding_capital`. The ensemble
+equity curve is the element-wise mean of N individual OOS equity curves. This is
+mathematically equivalent to 1/N capital allocation while preserving position sizing.
+
+**`run_ga()` return contract**: `(ensemble_list, best_ever_fitness, gen_log)` where
+`ensemble_list = [(genome_dict, fitness), ...]` of length `ENSEMBLE_SIZE`.
+
+---
+
 ## Architecture
 
 ```

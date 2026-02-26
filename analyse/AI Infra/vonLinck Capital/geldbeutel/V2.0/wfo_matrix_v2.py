@@ -886,6 +886,11 @@ GENE_BOUNDS = {
 GENE_NAMES = list(GENE_BOUNDS.keys())
 N_GENES = len(GENE_NAMES)
 
+# Ensemble configuration — deploy N diverse genomes per WFO window OOS
+ENSEMBLE_SIZE = 3
+DIVERSITY_MIN_GENES = 3        # genome must differ on >= 3 of 7 genes
+DIVERSITY_THRESHOLD_PCT = 0.15 # each differing gene >= 15% of its range
+
 
 def random_genome(rng):
     g = np.zeros(N_GENES)
@@ -914,6 +919,28 @@ def decode_genome(g):
         'beta':     float(g[5]),
         'vol_mult': float(g[6]),
     }
+
+
+def genome_distance(g1, g2):
+    """Count genes differing by >= DIVERSITY_THRESHOLD_PCT of gene range."""
+    n_different = 0
+    for i, name in enumerate(GENE_NAMES):
+        lo, hi, _ = GENE_BOUNDS[name]
+        gene_range = hi - lo
+        if gene_range == 0:
+            continue
+        if abs(g1[i] - g2[i]) / gene_range >= DIVERSITY_THRESHOLD_PCT:
+            n_different += 1
+    return n_different
+
+
+def is_diverse_from_set(candidate, selected_set,
+                        min_genes=DIVERSITY_MIN_GENES):
+    """True if candidate differs from ALL selected genomes on >= min_genes."""
+    for existing in selected_set:
+        if genome_distance(candidate, existing) < min_genes:
+            return False
+    return True
 
 
 def crossover_sbx(p1, p2, rng, eta=2.0):
@@ -955,7 +982,12 @@ def tournament_select(population, fitnesses, rng, k=3):
 
 def run_ga(q_open, q_high, q_low, q_close, min_of_day,
            volume, tod_baseline_vol, is_roll_date,
-           pop_size=80, generations=50, elite_frac=0.1, seed=42):
+           pop_size=80, generations=50, elite_frac=0.1, seed=42,
+           ensemble_size=ENSEMBLE_SIZE):
+    """
+    Returns: (ensemble_list, best_ever_fitness, gen_log)
+      ensemble_list = [(genome_dict, fitness), ...] of length ensemble_size
+    """
     rng = np.random.default_rng(seed)
     n_elite = max(2, int(pop_size * elite_frac))
     population = [random_genome(rng) for _ in range(pop_size)]
@@ -966,8 +998,12 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
     cached_fitnesses  = [None] * n_elite   # elite fitness cache; avoids re-evaluation
     max_workers       = os.cpu_count() or 4
 
+    # Hall-of-fame: accumulate top feasible genomes across ALL generations
+    HOF_CAPACITY = max(20, ensemble_size * 5)
+    hall_of_fame = []  # list of (genome_array_copy, fitness_float)
+
     print(f"  [GA] {max_workers} logical cores | pop={pop_size} | gens={generations} | "
-          f"elite={n_elite}", flush=True)
+          f"elite={n_elite} | ensemble={ensemble_size}", flush=True)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for gen in range(generations):
@@ -997,6 +1033,27 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
             if gen_best_fit > best_ever_fitness:
                 best_ever_fitness = gen_best_fit
                 best_ever_genome  = population[gen_best_idx].copy()
+
+            # Update hall-of-fame with feasible genomes from this generation
+            for idx in range(pop_size):
+                if fitnesses[idx] > -999998.0:
+                    hall_of_fame.append((population[idx].copy(),
+                                        float(fitnesses[idx])))
+
+            # Prune HoF: deduplicate clones, keep top HOF_CAPACITY by fitness
+            hall_of_fame.sort(key=lambda x: x[1], reverse=True)
+            deduped = []
+            for g, f in hall_of_fame:
+                is_clone = False
+                for eg, _ in deduped:
+                    if np.allclose(g, eg, atol=1e-6):
+                        is_clone = True
+                        break
+                if not is_clone:
+                    deduped.append((g, f))
+                if len(deduped) >= HOF_CAPACITY:
+                    break
+            hall_of_fame = deduped
 
             gen_log.append({
                 'generation':   gen,
@@ -1036,7 +1093,51 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
     if best_ever_genome is None:
         best_ever_genome = population[0]
 
-    return decode_genome(best_ever_genome), best_ever_fitness, gen_log
+    # ── Select diverse ensemble from hall-of-fame ──
+    if not hall_of_fame:
+        # All genomes infeasible across all generations
+        return [(decode_genome(best_ever_genome), -999999.0)], -999999.0, gen_log
+
+    ensemble = []
+    selected_arrays = []
+
+    # Greedy: apex first, then highest-fitness passing diversity filter
+    for g_arr, fit in hall_of_fame:
+        if len(ensemble) == 0:
+            ensemble.append((decode_genome(g_arr), fit))
+            selected_arrays.append(g_arr)
+        elif len(ensemble) < ensemble_size:
+            if is_diverse_from_set(g_arr, selected_arrays):
+                ensemble.append((decode_genome(g_arr), fit))
+                selected_arrays.append(g_arr)
+
+    # Fallback: if diversity filter yields < ensemble_size, pad with
+    # best-fitness non-clone genomes (allow near-clones over running short)
+    if len(ensemble) < ensemble_size:
+        for g_arr, fit in hall_of_fame:
+            if len(ensemble) >= ensemble_size:
+                break
+            already_in = any(np.allclose(g_arr, s, atol=1e-6)
+                            for s in selected_arrays)
+            if not already_in:
+                ensemble.append((decode_genome(g_arr), fit))
+                selected_arrays.append(g_arr)
+
+    # Last resort: duplicate apex to fill remaining slots
+    while len(ensemble) < ensemble_size:
+        ensemble.append(ensemble[0])
+
+    n_feasible = sum(1 for _, f in ensemble if f > -999998.0)
+    print(f"  [GA] Ensemble: {len(ensemble)} genomes "
+          f"({n_feasible} feasible, "
+          f"filtered from {len(hall_of_fame)} HoF candidates)", flush=True)
+    for k, (gd, gf) in enumerate(ensemble):
+        print(f"    E{k}: fit={gf:.4f} w={gd['w']} m={gd['m']} "
+              f"d=[{gd['d_min']:.3f},{gd['d_max']:.3f}] "
+              f"v={gd['v']} beta={gd['beta']:.2f} vm={gd['vol_mult']:.2f}",
+              flush=True)
+
+    return ensemble, best_ever_fitness, gen_log
 
 
 # =====================================================================
@@ -1126,21 +1227,24 @@ def run_wfo(df, train_months=24, trade_months=12,
         q_o, q_h, q_l, q_c, mod, vol, med_vol, roll = quantize_and_align_data(train_df)
 
         t0 = time.time()
-        apex_genome, apex_fitness, gen_log = run_ga(
+        ensemble, apex_fitness, gen_log = run_ga(
             q_o, q_h, q_l, q_c, mod, vol, med_vol, roll,
             pop_size=pop_size, generations=generations, seed=seed + i
         )
         ga_time = time.time() - t0
+        apex_genome = ensemble[0][0]  # backward-compat: first genome is apex
 
         print(f"\n  APEX GENOME (fitness={apex_fitness:.4f}, {ga_time:.1f}s):")
         for k, val in apex_genome.items():
             print(f"    {k}: {val}")
 
-        # Skip OOS if the apex genome is infeasible (fitness == -999999).
-        # Deploying an infeasible genome to OOS produces misleading equity changes.
+        # Filter ensemble to feasible genomes only
+        feasible_ensemble = [(g, f) for g, f in ensemble if f > -999998.0]
+
+        # Skip OOS if no feasible genomes.
         # Capital passes forward unchanged; window is logged with 0 OOS stats.
-        if apex_fitness < 0:
-            print("  SKIP OOS: apex genome infeasible — capital passed forward unchanged.")
+        if not feasible_ensemble:
+            print("  SKIP OOS: all ensemble genomes infeasible — capital passed forward unchanged.")
             window_results.append({
                 'window':          i,
                 'train_start':     win['train_start'],
@@ -1155,16 +1259,19 @@ def run_wfo(df, train_months=24, trade_months=12,
                 'avg_hold_bars':   0.0,
                 'start_capital':   compounding_capital,
                 'end_capital':     compounding_capital,
+                'ensemble_size_deployed': 0,
+                'ensemble_oos_nets': [],
             })
             continue
 
         # OOS run with integer-indexed overhang:
-        #   w_bars for range(w_int, n) start offset + w_bars Phase 3 warm-up
-        w_bars = apex_genome['w']
+        #   Use max w across ensemble for structural warm-up
+        n_deployed = len(feasible_ensemble)
+        max_w = max(g['w'] for g, f in feasible_ensemble)
         trade_start_idx = df.index.searchsorted(win['trade_start'])
         trade_end_idx   = df.index.searchsorted(win['trade_end'])
 
-        required_overhang = w_bars * 2
+        required_overhang = max_w * 2
         slice_start = max(0, trade_start_idx - required_overhang)
 
         trade_df_full = df.iloc[slice_start:trade_end_idx].copy()
@@ -1178,35 +1285,53 @@ def run_wfo(df, train_months=24, trade_months=12,
         q_o2, q_h2, q_l2, q_c2, mod2, vol2, med_vol2, roll2 = \
             quantize_and_align_data(trade_df_full)
 
-        # Run kernel: overhang (IS lock) + OOS (execution live)
-        eq_full, trades_full, bars_in_trade = swing_liquidity_sweep_engine(
-            q_o2, q_h2, q_l2, q_c2, mod2, vol2, med_vol2, roll2,
-            compounding_capital, oos_start_idx,
-            apex_genome['w'],        apex_genome['m'],
-            apex_genome['d_min'],    apex_genome['d_max'],
-            apex_genome['v'],        apex_genome['beta'],
-            apex_genome['vol_mult']
-        )
+        # ── Ensemble OOS evaluation ──
+        oos_equity_curves = []
+        oos_trades_list   = []
+        genome_oos_nets   = []
+        total_bars_all    = 0
 
-        # Isolate OOS segment
-        oos_equity = eq_full[oos_start_idx:]
-        oos_dates  = trade_df_full.index[oos_start_idx:]
+        for k, (genome_dict, ga_fit) in enumerate(feasible_ensemble):
+            eq_full, trades_full, bars_in_trade = swing_liquidity_sweep_engine(
+                q_o2, q_h2, q_l2, q_c2, mod2, vol2, med_vol2, roll2,
+                compounding_capital, oos_start_idx,
+                genome_dict['w'],     genome_dict['m'],
+                genome_dict['d_min'], genome_dict['d_max'],
+                genome_dict['v'],     genome_dict['beta'],
+                genome_dict['vol_mult']
+            )
 
-        # Approximate OOS-only trade count (exclude overhang fills)
-        overhang_equity = eq_full[:oos_start_idx]
-        overhang_trades = int(np.sum(np.diff(overhang_equity) != 0)) \
-                          if len(overhang_equity) > 1 else 0
-        oos_trades = trades_full - overhang_trades
+            oos_eq = eq_full[oos_start_idx:]
+            oos_equity_curves.append(oos_eq)
 
-        if len(oos_equity) > 0:
-            final_cap = float(oos_equity[-1])
+            # Per-genome OOS trade count (approximate, exclude overhang)
+            overhang_eq = eq_full[:oos_start_idx]
+            oh_trades = int(np.sum(np.diff(overhang_eq) != 0)) \
+                        if len(overhang_eq) > 1 else 0
+            oos_tr = trades_full - oh_trades
+            oos_trades_list.append(oos_tr)
+            total_bars_all += bars_in_trade
+
+            g_net = float(oos_eq[-1]) - compounding_capital
+            genome_oos_nets.append(g_net)
+            print(f"    E{k}/{n_deployed-1}: net=${g_net:,.2f} "
+                  f"| trades={oos_tr} | ga_fit={ga_fit:.4f}")
+
+        # Ensemble equity: element-wise mean of all OOS equity curves
+        # Mathematically equivalent to 1/N capital allocation
+        ensemble_equity = np.mean(np.array(oos_equity_curves), axis=0)
+        oos_dates = trade_df_full.index[oos_start_idx:]
+
+        if len(ensemble_equity) > 0:
+            final_cap = float(ensemble_equity[-1])
             oos_net   = final_cap - compounding_capital
-            oos_peak  = np.maximum.accumulate(oos_equity)
-            oos_dd    = float(np.max(oos_peak - oos_equity))
+            oos_peak  = np.maximum.accumulate(ensemble_equity)
+            oos_dd    = float(np.max(oos_peak - ensemble_equity))
 
-            avg_hold  = float(bars_in_trade) / max(float(oos_trades), 1.0)
+            total_oos_trades = sum(oos_trades_list)
+            avg_hold = float(total_bars_all) / max(float(total_oos_trades), 1.0)
 
-            segment = pd.Series(oos_equity, index=oos_dates)
+            segment = pd.Series(ensemble_equity, index=oos_dates)
             oos_segments.append(segment)
 
             window_results.append({
@@ -1219,19 +1344,23 @@ def run_wfo(df, train_months=24, trade_months=12,
                 'oos_net':         oos_net,
                 'oos_dd':          oos_dd,
                 'oos_calmar':      oos_net / oos_dd if oos_dd > 0 else 0.0,
-                'oos_trades':      oos_trades,
+                'oos_trades':      total_oos_trades,
                 'avg_hold_bars':   avg_hold,
                 'start_capital':   compounding_capital,
                 'end_capital':     final_cap,
+                'ensemble_size_deployed': n_deployed,
+                'ensemble_oos_nets': genome_oos_nets,
             })
 
-            print(f"\n  OOS RESULT:")
+            print(f"\n  ENSEMBLE OOS RESULT ({n_deployed} genomes):")
             print(f"    Capital:   ${compounding_capital:,.2f} -> ${final_cap:,.2f}")
             print(f"    Net P&L:   ${oos_net:,.2f}")
             print(f"    Max DD:    ${oos_dd:,.2f}")
             print(f"    Calmar:    {oos_net / oos_dd if oos_dd > 0 else 0:.3f}")
-            print(f"    Trades:    {oos_trades}  (OOS only)")
+            print(f"    Trades:    {total_oos_trades} (total across {n_deployed} genomes)")
             print(f"    Avg Hold:  {avg_hold:.0f} bars ({avg_hold/60:.1f}h)")
+            for k, net in enumerate(genome_oos_nets):
+                print(f"    E{k}: net=${net:,.2f}")
 
             compounding_capital = final_cap
 
@@ -1347,6 +1476,10 @@ if __name__ == '__main__':
     if results['window_results']:
         import pandas as pd
         wr_df = pd.DataFrame(results['window_results'])
+        # Serialize list columns to string for CSV compatibility
+        for col in ['ensemble_oos_nets']:
+            if col in wr_df.columns:
+                wr_df[col] = wr_df[col].apply(str)
         out_wr = os.path.join(DATA_DIR, "wfo_window_results_v2.csv")
         wr_df.to_csv(out_wr, index=False)
         print(f"Window results saved -> wfo_window_results_v2.csv")
