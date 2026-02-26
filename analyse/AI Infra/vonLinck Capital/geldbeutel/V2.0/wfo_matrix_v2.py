@@ -999,7 +999,9 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
     max_workers       = os.cpu_count() or 4
 
     # Hall-of-fame: accumulate top feasible genomes across ALL generations
-    HOF_CAPACITY = max(20, ensemble_size * 5)
+    # Capacity must be large enough to retain diverse lower-fitness genomes
+    # from early generations that the converged late-generation elite prunes.
+    HOF_CAPACITY = max(50, ensemble_size * 15)
     hall_of_fame = []  # list of (genome_array_copy, fitness_float)
 
     print(f"  [GA] {max_workers} logical cores | pop={pop_size} | gens={generations} | "
@@ -1040,16 +1042,20 @@ def run_ga(q_open, q_high, q_low, q_close, min_of_day,
                     hall_of_fame.append((population[idx].copy(),
                                         float(fitnesses[idx])))
 
-            # Prune HoF: deduplicate clones, keep top HOF_CAPACITY by fitness
+            # Prune HoF: diversity-aware dedup, keep top HOF_CAPACITY.
+            # Genomes differing on < 2 genes (by >= 15% of range) are treated
+            # as functional duplicates. This prevents the converged late-gen
+            # population from flooding the HoF with near-clones, ensuring
+            # diverse early-gen hypotheses survive for ensemble selection.
             hall_of_fame.sort(key=lambda x: x[1], reverse=True)
             deduped = []
             for g, f in hall_of_fame:
-                is_clone = False
+                is_dup = False
                 for eg, _ in deduped:
-                    if np.allclose(g, eg, atol=1e-6):
-                        is_clone = True
+                    if genome_distance(g, eg) < 2:   # < 2 meaningful gene diffs
+                        is_dup = True
                         break
-                if not is_clone:
+                if not is_dup:
                     deduped.append((g, f))
                 if len(deduped) >= HOF_CAPACITY:
                     break
