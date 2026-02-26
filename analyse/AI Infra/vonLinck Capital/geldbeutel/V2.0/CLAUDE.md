@@ -71,7 +71,6 @@ fitness = net / dd   (if feasible, else -999999)
 ```
 - Hard gate: `min_trades = 15` — statistical significance on 12-month IS
 - Hard gate: `min_avg_hold = 500 bars` (~8h) — eliminates scalp-degenerate genomes
-- Hard gate: `IS Calmar ≥ 0.5` — rejects low-edge genomes with positive net but weak risk-adjusted return
 - Pure Calmar `net/dd` within the feasible region — honest edge per unit risk
 - Mark-to-market uses true intrabar MAE: `equity[t] = capital + (q_low[t] - entry_px) × size × PT_VAL` for longs
 - V1.0 validated: simple Calmar achieved Calmar 1.12 OOS on 9-year CFD data
@@ -272,7 +271,7 @@ python wfo_matrix_v2.py
 | CME data source not included | data_loader_v2.py accepts any CSV/Parquet; see Data Requirements |
 | 12–24h WFO runtime | STRUCTURAL_RESOLUTION tunable; start with 15 for rapid prototyping |
 | Unadjusted data has roll gaps | is_roll_date zeros structural memory; positions closed on roll |
-| Low swing trade frequency (~20–40/yr) | Fitness min_trades=15; IS Calmar≥0.5 gate; Calmar×√trades respects low-frequency edge |
+| Low swing trade frequency (~20–40/yr) | Fitness min_trades=15; Calmar×√trades respects low-frequency edge |
 | Regime gate can over-lock in trending markets | Gate resets on opposite-side success; self-correcting over time |
 
 ---

@@ -837,11 +837,7 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
     # Step 5: Pure Calmar — honest edge per unit risk.
     # Hard gates above (min_trades=15, min_avg_hold=500 bars) define the
     # feasible region; within it, net/dd is the only objective.
-    # IS Calmar floor of 0.5 rejects genomes with weak in-sample edge.
-    calmar = net / dd
-    if calmar < 0.5:
-        return -999999.0
-    return calmar
+    return net / dd
 
 
 # =====================================================================
