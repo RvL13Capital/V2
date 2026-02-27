@@ -821,7 +821,7 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
         w, m, d_min, d_max, v, beta, vol_mult
     )
 
-    if tr < 15:
+    if tr < 10:
         return -999999.0
 
     avg_hold = float(total_bars) / max(float(tr), 1.0)
@@ -835,9 +835,13 @@ def evaluate_genome(q_open, q_high, q_low, q_close, min_of_day,
         return float(net - dd)
 
     # Step 5: Pure Calmar — honest edge per unit risk.
-    # Hard gates above (min_trades=15, min_avg_hold=500 bars) define the
+    # Hard gates above (min_trades=10, min_avg_hold=500 bars) define the
     # feasible region; within it, net/dd is the only objective.
-    return net / dd
+    # IS Calmar floor: reject genomes with weak risk-adjusted IS edge.
+    calmar = net / dd
+    if calmar < 0.5:
+        return -999999.0
+    return calmar
 
 
 # =====================================================================
@@ -877,7 +881,7 @@ GENE_BOUNDS = {
     'w':        (2000,  8000,  'int'),
     'm':        (400,   2760,  'int'),
     'd_min':    (0.10,  1.50,  'float'),
-    'd_max':    (1.00,  15.00, 'float'),
+    'd_max':    (1.00,  10.00, 'float'),
     'v':        (2,     200,   'int'),
     'beta':     (3.0,   15.0,  'float'),
     'vol_mult': (0.2,   1.5,   'float'),
